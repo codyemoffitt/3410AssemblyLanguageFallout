@@ -1,0 +1,358 @@
+Microsoft (R) Macro Assembler Version 6.15.8803		    12/02/15 16:46:35
+falloutdriver.asm					     Page 1 - 1
+
+
+				; Program 4, Fallout
+				; author:  Cody Moffitt
+				; class: 3410
+				; due date:  12/02/2015
+
+				.386
+				.MODEL FLAT
+
+				ExitProcess PROTO NEAR32 stdcall, dwExitCode:DWORD
+
+				.STACK  4096             ; reserve 4096-byte stack
+
+ = 000007D0			MAX_ARRAY EQU 2000
+ = 0000000D			LEN EQU 13
+ = 00000014			MAX EQU 20 
+
+ 00000000			.DATA                    ; reserve storage for data
+
+				; Used throughout the program in general and for debugging
+ 00000000 45 6E 74 65 72	input_prompt			BYTE	"Enter a string: ", 0
+	   20 61 20 73 74
+	   72 69 6E 67 3A
+	   20 00
+ 00000011 54 68 65 20 6E	num_passwords_string	BYTE	"The number of strings entered is ", 0
+	   75 6D 62 65 72
+	   20 6F 66 20 73
+	   74 72 69 6E 67
+	   73 20 65 6E 74
+	   65 72 65 64 20
+	   69 73 20 00
+ 00000033 45 6E 74 65 72	index_prompt			BYTE	"Enter the index for the test password (1-based): ", 0
+	   20 74 68 65 20
+	   69 6E 64 65 78
+	   20 66 6F 72 20
+	   74 68 65 20 74
+	   65 73 74 20 70
+	   61 73 73 77 6F
+	   72 64 20 28 31
+	   2D 62 61 73 65
+	   64 29 3A 20 00
+ 00000065 45 6E 74 65 72	match_prompt			BYTE	"Enter the number of exact character matches: ", 0 
+	   20 74 68 65 20
+	   6E 75 6D 62 65
+	   72 20 6F 66 20
+	   65 78 61 63 74
+	   20 63 68 61 72
+	   61 63 74 65 72
+	   20 6D 61 74 63
+	   68 65 73 3A 20
+	   00
+ 00000093  000007D0 [		passwords         		BYTE    MAX_ARRAY DUP(?)
+	    00
+	   ]
+ 00000863  0000000D [		input_string			BYTE	LEN DUP(?)
+	    00
+	   ]
+ 00000870 00			stringTerminator		BYTE	0
+
+ 00000871  0000000D [		string1					BYTE	LEN DUP(?)
+	    00
+	   ]
+ 0000087E  0000000D [		string2					BYTE	LEN DUP(?)
+	    00
+	   ]
+
+ 0000088B 00000000		numPasswords			DWORD	0
+
+ 0000088F 44 6F 6E 65 00	doneString				BYTE	"Done", 0
+ 00000894 0000			start_sub				WORD	0
+ 00000896 000D			end_sub					WORD	13
+ 00000898 00000000		numMatches				DWORD   0
+
+ 0000089C 00000000		goodPasses				DWORD	0
+
+ 000008A0 00000000		passwordChoice			DWORD	0 
+ 000008A4 00000000		numHackMatches			DWORD	0
+
+ 000008A8 00000000		tempLoop				DWORD 	0
+
+
+
+
+				INCLUDE io.h
+			      C ; IO.H -- header file for I/O macros
+			      C ; 32-bit version for flat memory model
+			      C ; R. Detmer   last revised 8/2000
+			      C .NOLIST     ; turn off listing
+			      C .LIST        ; begin listing
+			      C 
+				INCLUDE debug.h
+			      C INCLUDE io.h
+			      C ; IO.H -- header file for I/O macros
+			      C ; 32-bit version for flat memory model
+			      C ; R. Detmer   last revised 8/2000
+			      C .NOLIST     ; turn off listing
+			      C .LIST        ; begin listing
+			      C 
+			      C 
+ = 0000000D		      C CR          EQU    0Dh   ; carriage return character
+ = 0000000A		      C LF          EQU    0Ah   ; linefeed character
+			      C 
+ 000008AC		      C .DATA
+ 000008AC 0D 0A 00	      C carriage    BYTE     CR, LF, 0
+ 000008AF  0000000D [	      C text        BYTE     13 DUP(?)
+	    00
+	   ]
+			      C 
+			      C outputW    	MACRO   var
+			      C                    itoa text, var
+			      C                    output text
+			      C                    output carriage
+			      C                 ENDM
+			      C 
+			      C outputD  	MACRO  var
+			      C                    dtoa text, var
+			      C                    output text
+			      C                    output carriage
+			      C          	ENDM
+			      C 
+			      C inputW          MACRO  prompt, location
+			      C                    output prompt
+			      C                    input text, 8
+			      C                    atoi text
+			      C                    mov location, ax
+			      C                 ENDM
+			      C 
+			      C inputD          MACRO  prompt, location
+			      C                    output prompt
+			      C                    input text, 13 
+			      C                    atod text
+			      C                    mov location, eax
+			      C                 ENDM
+			      C 
+				INCLUDE falloutprocs.h
+			      C ; Program 4, Fallout
+			      C ; author:  Cody Moffitt
+			      C ; class: 3410
+			      C ; due date:  12/02/2015
+			      C 
+			      C .NOLIST
+			      C .LIST
+			      C 
+				INCLUDE strutils.h
+			      C .NOLIST
+			      C .LIST
+			      C 
+
+
+ 00000000			.CODE                                    ; start of main program code
+
+
+				; Program start 			
+ 00000000			_start:
+ 00000000				
+ 00000000  B9 00000000			mov ecx, 0 ; track iteration
+				; Loop to gather the password strings 
+ 00000005			_stringEntryLoop:
+						
+						output carriage
+						output input_prompt
+						input input_string, LEN
+						output input_string
+						
+ 00000043  80 3D 00000863 R	        cmp    input_string, 'x'        ; response = 'x' ? Time to quit gathering strings 
+	   78
+ 0000004A  74 1F		        je     _stringEntryDone             ; exit string entry loop if so
+
+						append input_string, passwords ;append passwords
+					
+ 00000061  83 F9 14				cmp ecx, MAX
+ 00000064  74 05				je _stringEntryDone
+						
+ 00000066  83 C1 01				add ecx, 1  ; Increment cx for loop 
+ 00000069  EB 9A				jmp _stringEntryLoop
+
+				; String entry finished, start running the algorithms to help hack some computers in Fallout 3 		
+ 0000006B			_stringEntryDone:
+ 0000006B  89 0D 0000088B R		mov numPasswords, ecx ; Store the number of passwords collected
+					output carriage
+					output carriage
+					
+					; Display the number of passwords 
+					output num_passwords_string
+					outputD numPasswords
+					output carriage
+					
+					; Print the collected passwords 
+					print_passwords     passwords, numPasswords, LEN
+					
+					; Capture number of passwords in goodpasses for upcoming loop 
+ 000000F6  89 0D 0000089C R		mov goodpasses, ecx 
+					
+					; Zero everything out, just for good luck 
+ 000000FC  B9 00000000			mov ecx, 0 
+ 00000101  B8 00000000			mov eax, 0 
+ 00000106  BB 00000000			mov ebx, 0 
+ 0000010B  BA 00000000			mov edx, 0
+
+					; The main algorithm's loop 
+ 00000110				_mainLoop:
+ 00000110  83 F9 04			cmp ecx, 4 ;Quit the loop if we've done this four times
+ 00000113  0F 8D 0000012E		jge _endMainLoop
+					
+					; Test to see if we've reached a point where there are no passwords or only 1 left, then quit the loop if so 
+ 00000119  8B 15 0000089C R		mov edx, goodpasses
+ 0000011F  83 FA 01			cmp edx, 1 
+ 00000122  0F 8E 0000011F		jle _endMainLoop
+					
+					; Get user input 
+					 inputD	index_prompt, passwordChoice
+					 outputD	passwordChoice
+					 inputD  match_prompt, numHackMatches
+					 outputD numHackMatches
+
+					; Do the work
+					fallout_hack passwords, LEN, goodpasses, passwordChoice, numHackMatches, goodpasses
+					
+					output carriage
+					print_passwords  passwords, goodpasses, LEN
+					
+					
+ 00000241  41				inc ecx  
+ 00000242  E9 FFFFFEC9			jmp _mainLoop
+ 00000247				_endMainLoop:
+					
+					INVOKE ExitProcess, 0   ; exit with return code 0
+
+ 0000024E			PUBLIC _start                       ; make entry point public
+
+				            END                     ; end of source code
+Microsoft (R) Macro Assembler Version 6.15.8803		    12/02/15 16:46:35
+falloutdriver.asm					     Symbols 2 - 1
+
+
+
+
+Macros:
+
+                N a m e                 Type
+
+append . . . . . . . . . . . . .	Proc
+atod . . . . . . . . . . . . . .	Proc
+atoi . . . . . . . . . . . . . .	Proc
+compare  . . . . . . . . . . . .	Proc
+dtoa . . . . . . . . . . . . . .	Proc
+equals . . . . . . . . . . . . .	Proc
+fallout_hack . . . . . . . . . .	Proc
+get_index  . . . . . . . . . . .	Proc
+indexOf  . . . . . . . . . . . .	Proc
+inputD . . . . . . . . . . . . .	Proc
+inputW . . . . . . . . . . . . .	Proc
+input  . . . . . . . . . . . . .	Proc
+itoa . . . . . . . . . . . . . .	Proc
+num_matches  . . . . . . . . . .	Proc
+outputD  . . . . . . . . . . . .	Proc
+outputW  . . . . . . . . . . . .	Proc
+output . . . . . . . . . . . . .	Proc
+print_passwords  . . . . . . . .	Proc
+replace  . . . . . . . . . . . .	Proc
+strcopy  . . . . . . . . . . . .	Proc
+strlen . . . . . . . . . . . . .	Proc
+substring  . . . . . . . . . . .	Proc
+swap_strings . . . . . . . . . .	Proc
+toLower  . . . . . . . . . . . .	Proc
+
+
+Segments and Groups:
+
+                N a m e                 Size     Length   Align   Combine Class
+
+FLAT . . . . . . . . . . . . . .	GROUP
+STACK  . . . . . . . . . . . . .	32 Bit	 00001000 DWord	  Stack	  'STACK'	 
+_DATA  . . . . . . . . . . . . .	32 Bit	 000008BC DWord	  Public  'DATA'	
+_TEXT  . . . . . . . . . . . . .	32 Bit	 0000024E DWord	  Public  'CODE'	
+
+
+Procedures,  parameters and locals:
+
+                N a m e                 Type     Value    Attr
+
+$$$00001 . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 0000024E Private
+  _stringEntryLoop . . . . . . .	L Near	 00000005 _TEXT	
+  _stringEntryDone . . . . . . .	L Near	 0000006B _TEXT	
+  _mainLoop  . . . . . . . . . .	L Near	 00000110 _TEXT	
+  _endMainLoop . . . . . . . . .	L Near	 00000247 _TEXT	
+ExitProcess  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+
+
+Symbols:
+
+                N a m e                 Type     Value    Attr
+
+@CodeSize  . . . . . . . . . . .	Number	 00000000h   
+@DataSize  . . . . . . . . . . .	Number	 00000000h   
+@Interface . . . . . . . . . . .	Number	 00000000h   
+@Model . . . . . . . . . . . . .	Number	 00000007h   
+@code  . . . . . . . . . . . . .	Text   	 _TEXT
+@data  . . . . . . . . . . . . .	Text   	 FLAT
+@fardata?  . . . . . . . . . . .	Text   	 FLAT
+@fardata . . . . . . . . . . . .	Text   	 FLAT
+@stack . . . . . . . . . . . . .	Text   	 FLAT
+CR . . . . . . . . . . . . . . .	Number	 0000000Dh   
+LEN  . . . . . . . . . . . . . .	Number	 0000000Dh   
+LF . . . . . . . . . . . . . . .	Number	 0000000Ah   
+MAX_ARRAY  . . . . . . . . . . .	Number	 000007D0h   
+MAX  . . . . . . . . . . . . . .	Number	 00000014h   
+_endMainLoop . . . . . . . . . .	L Near	 00000247 _TEXT	
+_mainLoop  . . . . . . . . . . .	L Near	 00000110 _TEXT	
+_start . . . . . . . . . . . . .	L Near	 00000000 _TEXT	Public
+_stringEntryDone . . . . . . . .	L Near	 0000006B _TEXT	
+_stringEntryLoop . . . . . . . .	L Near	 00000005 _TEXT	
+appendproc . . . . . . . . . . .	L Near	 00000000 FLAT	External
+atodproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+atoiproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+carriage . . . . . . . . . . . .	Byte	 000008AC _DATA	
+compareproc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+doneString . . . . . . . . . . .	Byte	 0000088F _DATA	
+dtoaproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+end_sub  . . . . . . . . . . . .	Word	 00000896 _DATA	
+equalsproc . . . . . . . . . . .	L Near	 00000000 FLAT	External
+fallout_hack_proc  . . . . . . .	L Near	 00000000 FLAT	External
+get_index_proc . . . . . . . . .	L Near	 00000000 FLAT	External
+goodPasses . . . . . . . . . . .	DWord	 0000089C _DATA	
+indexOfproc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+index_prompt . . . . . . . . . .	Byte	 00000033 _DATA	
+inproc . . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+input_prompt . . . . . . . . . .	Byte	 00000000 _DATA	
+input_string . . . . . . . . . .	Byte	 00000863 _DATA	
+itoaproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+match_prompt . . . . . . . . . .	Byte	 00000065 _DATA	
+numHackMatches . . . . . . . . .	DWord	 000008A4 _DATA	
+numMatches . . . . . . . . . . .	DWord	 00000898 _DATA	
+numPasswords . . . . . . . . . .	DWord	 0000088B _DATA	
+num_matches_proc . . . . . . . .	L Near	 00000000 FLAT	External
+num_passwords_string . . . . . .	Byte	 00000011 _DATA	
+outproc  . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+passwordChoice . . . . . . . . .	DWord	 000008A0 _DATA	
+passwords  . . . . . . . . . . .	Byte	 00000093 _DATA	
+print_passwords_proc . . . . . .	L Near	 00000000 FLAT	External
+replaceproc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+start_sub  . . . . . . . . . . .	Word	 00000894 _DATA	
+strcopyproc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+string1  . . . . . . . . . . . .	Byte	 00000871 _DATA	
+string2  . . . . . . . . . . . .	Byte	 0000087E _DATA	
+stringTerminator . . . . . . . .	Byte	 00000870 _DATA	
+strlenproc . . . . . . . . . . .	L Near	 00000000 FLAT	External
+substringproc  . . . . . . . . .	L Near	 00000000 FLAT	External
+swap_strings_proc  . . . . . . .	L Near	 00000000 FLAT	External
+tempLoop . . . . . . . . . . . .	DWord	 000008A8 _DATA	
+text . . . . . . . . . . . . . .	Byte	 000008AF _DATA	
+toLowerproc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+
+	   0 Warnings
+	   0 Errors

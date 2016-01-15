@@ -1,0 +1,679 @@
+Microsoft (R) Macro Assembler Version 6.15.8803		    12/02/15 16:46:35
+falloutprocs.asm					     Page 1 - 1
+
+
+				; Program 4, Fallout
+				; author:  Cody Moffitt
+				; class: 3410
+				; due date:  12/02/2015
+
+				.386
+				.MODEL FLAT
+
+				INCLUDE debug.h
+			      C INCLUDE io.h
+			      C ; IO.H -- header file for I/O macros
+			      C ; 32-bit version for flat memory model
+			      C ; R. Detmer   last revised 8/2000
+			      C .NOLIST     ; turn off listing
+			      C .LIST        ; begin listing
+			      C 
+			      C 
+ = 0000000D		      C CR          EQU    0Dh   ; carriage return character
+ = 0000000A		      C LF          EQU    0Ah   ; linefeed character
+			      C 
+ 00000000		      C .DATA
+ 00000000 0D 0A 00	      C carriage    BYTE     CR, LF, 0
+ 00000003  0000000D [	      C text        BYTE     13 DUP(?)
+	    00
+	   ]
+			      C 
+			      C outputW    	MACRO   var
+			      C                    itoa text, var
+			      C                    output text
+			      C                    output carriage
+			      C                 ENDM
+			      C 
+			      C outputD  	MACRO  var
+			      C                    dtoa text, var
+			      C                    output text
+			      C                    output carriage
+			      C          	ENDM
+			      C 
+			      C inputW          MACRO  prompt, location
+			      C                    output prompt
+			      C                    input text, 8
+			      C                    atoi text
+			      C                    mov location, ax
+			      C                 ENDM
+			      C 
+			      C inputD          MACRO  prompt, location
+			      C                    output prompt
+			      C                    input text, 13 
+			      C                    atod text
+			      C                    mov location, eax
+			      C                 ENDM
+			      C 
+				INCLUDE strutils.h
+			      C .NOLIST
+			      C .LIST
+			      C 
+
+ = 000003E8			MAX_ARRAY EQU 1000
+
+				; params for get_index_proc
+ = [ebp + 20]			index			EQU [ebp + 20] ; index to find 
+ = [ebp + 16]			str_len			EQU [ebp + 16] ; length of strings 
+ = [ebp + 12]			str_2			EQU [ebp + 12] ; address of string to copy into 
+ = [ebp + 8]			str_1			EQU [ebp + 8]  ; address of string to copy from
+
+				; params for swap_strings_proc, num_matches_proc, and shift_proc
+ = [ebp + 24]			maxNumStrings	   EQU [ebp + 24] ;or num matches
+ = [ebp + 20]			index2 			   EQU [ebp + 20] ; Second string to swap's index
+ = [ebp + 16]			index1 			   EQU [ebp + 16] ; First string to swap's index
+ = [ebp + 12]			swap_length		   EQU [ebp + 12] ; Length of string 
+ = [ebp + 8]			passwordString_add EQU [ebp + 8]  ; Address of the string containing the passwords
+
+				; params for fallout_hack_proc
+ = [ebp + 24]			hack_matches		   EQU [ebp + 24] ; The number of matches Fallout says you had
+ = [ebp + 20]			hack_choice 		   EQU [ebp + 20] ; The chosen test password's index 
+ = [ebp + 16]			hack_amount			   EQU [ebp + 16] ; The number of passwords 
+ = [ebp + 12]			hack_pass_length	   EQU [ebp + 12] ; Length of individual password strings
+ = [ebp + 8]			hackPasswordString_add EQU [ebp + 8]  ; Address of the string containing the passwords 
+
+				; params for print_passwords_proc
+ = [ebp + 16]			amount			EQU [ebp + 16] ; Number of passwords to print 
+ = [ebp + 12]			prt_len			EQU [ebp + 12] ; Length of individual password strings
+ = [ebp + 8]			passwords		EQU [ebp + 8]  ; Address of the string containing the passwords
+
+				PUBLIC swap_strings_proc
+				PUBLIC num_matches_proc
+				PUBLIC get_index_proc
+				PUBLIC print_passwords_proc
+				PUBLIC shift_proc
+
+ 00000010			.DATA
+ 00000010  000003E8 [		temp         		BYTE    MAX_ARRAY DUP(?) ;temporary storage for print passwords, makes it slightly easier
+	    00
+	   ]
+
+ 00000000			.CODE
+
+
+				; This procedure swaps two strings
+				; It takes a two indices, and finds the addresses to swap using these
+				; It uses the end of the passwordString array for temporary storage for the swap
+ 00000000			swap_strings_proc  PROC   NEAR32
+
+ 00000000  55			        push   ebp           
+ 00000001  8B EC		        mov    ebp, esp     
+ 00000003  50			        push   eax         
+ 00000004  53					push   ebx
+ 00000005  51					push   ecx 
+ 00000006  52					push   edx
+ 00000007  57					push   	edi               
+ 00000008  56			        push   	esi
+ 00000009  9C			        pushfd                 
+						
+						
+						
+ 0000000A  8B 45 10				mov eax, index1
+ 0000000D  83 E8 01				sub eax, 1
+ 00000010  8B 7D 08				mov edi, passwordString_add
+ 00000013  8B 75 08				mov esi, passwordString_add
+ 00000016  B9 00000000				mov ecx, 0 
+ 0000001B  8B 5D 0C				mov ebx, swap_length 
+ 0000001E  83 EB 02				sub ebx, 2 
+						
+						;; Get index1
+ 00000021					_swapaddLoop1:
+ 00000021  3B C8				cmp ecx, eax
+ 00000023  7D 07				jge _endSwapAddLoop1
+ 00000025  03 F3				add esi, ebx 
+ 00000027  83 C1 01				add ecx, 1
+ 0000002A  EB F5				jmp _swapaddLoop1
+ 0000002C					_endSwapAddLoop1:
+						
+						; Get maximum spot + length, a swap space 
+ 0000002C  8B 45 18				mov eax, maxNumStrings
+ 0000002F  B9 00000000				mov ecx, 0 
+ 00000034  8B 5D 0C				mov ebx, swap_length 
+ 00000037  83 EB 02				sub ebx, 2 
+ 0000003A					_swapaddLoop2:
+ 0000003A  3B C8				cmp ecx, eax
+ 0000003C  7D 07				jge _endSwapAddLoop2
+ 0000003E  03 FB				add edi, ebx 
+ 00000040  83 C1 01				add ecx, 1
+ 00000043  EB F5				jmp _swapaddLoop2
+ 00000045					_endSwapAddLoop2:
+
+ 00000045  8B 4D 0C				mov ecx, swap_length
+ 00000048  83 E9 02				sub ecx, 2 
+ 0000004B  FC					cld
+ 0000004C  F3/ A4				rep movsb
+						
+ 0000004E  8B 45 14				mov eax, index2
+ 00000051  83 E8 01				sub eax, 1
+ 00000054  8B 7D 08				mov edi, passwordString_add
+ 00000057  8B 75 08				mov esi, passwordString_add
+ 0000005A  B9 00000000				mov ecx, 0 
+ 0000005F  8B 5D 0C				mov ebx, swap_length 
+ 00000062  83 EB 02				sub ebx, 2 
+						
+						;; Get index2
+ 00000065					_swapaddLoop3:
+ 00000065  3B C8				cmp ecx, eax
+ 00000067  7D 07				jge _endSwapAddLoop3
+ 00000069  03 F3				add esi, ebx 
+ 0000006B  83 C1 01				add ecx, 1
+ 0000006E  EB F5				jmp _swapaddLoop3
+ 00000070					_endSwapAddLoop3:
+						
+						; Get index1
+ 00000070  8B 45 10				mov eax, index1
+ 00000073  83 E8 01				sub eax, 1
+ 00000076  B9 00000000				mov ecx, 0 
+ 0000007B  8B 5D 0C				mov ebx, swap_length 
+ 0000007E  83 EB 02				sub ebx, 2 
+ 00000081					_swapaddLoop4:
+ 00000081  3B C8				cmp ecx, eax
+ 00000083  7D 07				jge _endSwapAddLoop4
+ 00000085  03 FB				add edi, ebx 
+ 00000087  83 C1 01				add ecx, 1
+ 0000008A  EB F5				jmp _swapaddLoop4
+ 0000008C					_endSwapAddLoop4:
+
+ 0000008C  8B 4D 0C				mov ecx, swap_length
+ 0000008F  83 E9 02				sub ecx, 2 
+ 00000092  FC					cld 
+ 00000093  F3/ A4				rep movsb
+						
+ 00000095  8B 45 14				mov eax, index2
+ 00000098  83 E8 01				sub eax, 1
+ 0000009B  8B 7D 08				mov edi, passwordString_add
+ 0000009E  8B 75 08				mov esi, passwordString_add
+ 000000A1  B9 00000000				mov ecx, 0 
+ 000000A6  8B 5D 0C				mov ebx, swap_length 
+ 000000A9  83 EB 02				sub ebx, 2 
+						
+						;; Get index2
+ 000000AC					_swapaddLoop5:
+ 000000AC  3B C8				cmp ecx, eax
+ 000000AE  7D 07				jge _endSwapAddLoop5
+ 000000B0  03 FB				add edi, ebx 
+ 000000B2  83 C1 01				add ecx, 1
+ 000000B5  EB F5				jmp _swapaddLoop5
+ 000000B7					_endSwapAddLoop5:
+						
+						; Get maximum spot + length, a swap space 
+ 000000B7  8B 45 18				mov eax, maxNumStrings
+ 000000BA  B9 00000000				mov ecx, 0 
+ 000000BF  8B 5D 0C				mov ebx, swap_length 
+ 000000C2  83 EB 02				sub ebx, 2 
+ 000000C5					_swapaddLoop6:
+ 000000C5  3B C8				cmp ecx, eax
+ 000000C7  7D 07				jge _endSwapAddLoop6
+ 000000C9  03 F3				add esi, ebx 
+ 000000CB  83 C1 01				add ecx, 1
+ 000000CE  EB F5				jmp _swapaddLoop6
+ 000000D0					_endSwapAddLoop6:
+
+ 000000D0  8B 4D 0C				mov ecx, swap_length
+ 000000D3  83 E9 02				sub ecx, 2 
+ 000000D6  FC					cld
+ 000000D7  F3/ A4				rep movsb
+
+ 000000D9  9D			        popfd  
+ 000000DA  5E					pop esi
+ 000000DB  5F					pop edi
+ 000000DC  5A			        pop edx 
+ 000000DD  59					pop ecx
+ 000000DE  5B					pop ebx 
+ 000000DF  58					pop eax             
+ 000000E0  8B E5		        mov    esp, ebp       
+ 000000E2  5D			        pop    ebp            
+ 000000E3  C2 0014		        ret    20             
+
+ 000000E6			swap_strings_proc     ENDP
+
+				; This procedure shifts a string from one index to another.
+				; It works by swapping the string place by place until it reaches its destination
+				; This retains the order of the strings
+ 000000E6			shift_proc  PROC   NEAR32
+
+ 000000E6  55			        push   ebp           
+ 000000E7  8B EC		        mov    ebp, esp     
+ 000000E9  50			        push   eax         
+ 000000EA  53					push   ebx
+ 000000EB  51					push   ecx 
+ 000000EC  52					push   edx
+ 000000ED  57					push   	edi               
+ 000000EE  56			        push   	esi
+ 000000EF  9C			        pushfd                 
+						
+						; outputD index1
+						; outputD index2 
+						; ; loop to move index1 to index2, swapping along the way 
+						
+ 000000F0  8B 4D 10				mov ecx, index1 
+ 000000F3  8B D9				mov ebx, ecx ; The temporary target to swap to, always one more than ecx 
+ 000000F5  43					inc ebx 
+						
+ 000000F6					_shiftLoop:
+ 000000F6  3B 4D 14				cmp ecx, index2
+ 000000F9  7D 14				jge _endShiftLoop
+ 000000FB  FF 75 18				push maxNumStrings
+ 000000FE  51					push ecx   
+ 000000FF  53					push ebx  
+ 00000100  FF 75 0C				push swap_length
+ 00000103  FF 75 08				push passwordString_add
+ 00000106  E8 FFFFFEF5				call swap_strings_proc
+ 0000010B  41					inc ecx 
+ 0000010C  43					inc ebx 
+ 0000010D  EB E7				jmp _shiftLoop
+ 0000010F					_endShiftLoop:
+						
+						
+
+ 0000010F  9D			        popfd  
+ 00000110  5E					pop esi
+ 00000111  5F					pop edi
+ 00000112  5A			        pop edx 
+ 00000113  59					pop ecx
+ 00000114  5B					pop ebx 
+ 00000115  58					pop eax             
+ 00000116  8B E5		        mov    esp, ebp       
+ 00000118  5D			        pop    ebp  
+ 00000119  C2 0014		        ret    20		
+
+ 0000011C			shift_proc     ENDP
+
+				; This procedure provides the number of exact character matches between two strings, given each of their indices 
+ 0000011C			num_matches_proc  PROC   NEAR32
+
+ 0000011C  55			        push   ebp           
+ 0000011D  8B EC		        mov    ebp, esp     
+ 0000011F  50			        push   eax         
+ 00000120  53					push   ebx
+ 00000121  51					push   ecx 
+						;push   edx
+ 00000122  57					push   	edi               
+ 00000123  56			        push   	esi
+ 00000124  9C			        pushfd                 
+						
+						;outputD index1 
+						;outputD index2
+						
+ 00000125  8B 45 10				mov eax, index1
+ 00000128  83 E8 01				sub eax, 1
+ 0000012B  8B 7D 08				mov edi, passwordString_add
+ 0000012E  8B 75 08				mov esi, passwordString_add
+ 00000131  B9 00000000				mov ecx, 0
+ 00000136  8B 5D 0C				mov ebx, swap_length 
+ 00000139  83 EB 02				sub ebx, 2 
+						
+ 0000013C  48					dec eax 
+						;; Get index1
+ 0000013D					_swapaddLoop1:
+ 0000013D  3B C8				cmp ecx, eax
+ 0000013F  7F 07				jg _endSwapAddLoop1
+ 00000141  03 F3				add esi, ebx 
+ 00000143  83 C1 01				add ecx, 1
+ 00000146  EB F5				jmp _swapaddLoop1
+ 00000148					_endSwapAddLoop1:
+						
+ 00000148  8B 45 14				mov eax, index2
+ 0000014B  83 E8 01				sub eax, 1
+ 0000014E  B9 00000000				mov ecx, 0 
+ 00000153  8B 5D 0C				mov ebx, swap_length 
+ 00000156  83 EB 02				sub ebx, 2 
+						
+						;; Get index2
+ 00000159					_swapaddLoop3:
+ 00000159  3B C8				cmp ecx, eax
+ 0000015B  74 07				je _endSwapAddLoop3
+ 0000015D  03 FB				add edi, ebx 
+ 0000015F  83 C1 01				add ecx, 1
+ 00000162  EB F5				jmp _swapaddLoop3
+ 00000164					_endSwapAddLoop3:
+						
+ 00000164  8B 4D 0C				mov ecx, swap_length 
+ 00000167  83 E9 02				sub ecx, 2
+						
+ 0000016A  B8 00000000				mov eax, 0 
+ 0000016F					_countMatchesLoop:
+ 0000016F  FC					cld
+ 00000170  F2/ A6				repne    cmpsb
+ 00000172  74 00		        je     _incrementKeepGoing
+						
+ 00000174					_incrementKeepGoing:
+ 00000174  75 01				  jnz _noMatch ; test last char
+ 00000176  40					  inc eax  
+ 00000177				    _noMatch:
+ 00000177  83 F9 00				  cmp ecx, 0 
+ 0000017A  75 F3				  jne _countMatchesLoop
+						
+ 0000017C					_endCountMatchesLoop:
+ 0000017C  8B D0				mov edx, eax ; store matches in edx 
+
+ 0000017E  9D			        popfd  
+ 0000017F  5E					pop esi
+ 00000180  5F					pop edi
+				        ;pop edx 
+ 00000181  59					pop ecx
+ 00000182  5B					pop ebx 
+ 00000183  58					pop eax             
+ 00000184  8B E5		        mov    esp, ebp       
+ 00000186  5D			        pop    ebp            
+ 00000187  C2 0010		        ret    16
+				                   
+ 0000018A			num_matches_proc     ENDP
+
+				; This procedure copies the string at a given index to another addresses
+				; Its used to copy the chosen strings for print_passwords_proc to temp 
+ 0000018A			get_index_proc  PROC   NEAR32
+
+ 0000018A  55			        push   ebp           
+ 0000018B  8B EC		        mov    ebp, esp     
+ 0000018D  50			        push   eax         
+ 0000018E  53					push   ebx
+ 0000018F  51					push   ecx 
+ 00000190  52					push   edx
+ 00000191  57					push   	edi               
+ 00000192  56			        push   	esi
+ 00000193  66| 9C		        pushf              
+						
+ 00000195  8B 45 14				mov eax, index 
+ 00000198  83 E8 01				sub eax, 1
+						
+ 0000019B  8B 7D 0C				mov edi, str_2
+ 0000019E  8B 75 08				mov esi, str_1 
+ 000001A1  B9 00000000				mov ecx, 0 
+ 000001A6  8B 5D 10				mov ebx, str_len 
+ 000001A9  83 EB 02				sub ebx, 2
+						
+ 000001AC					_addLoop:
+ 000001AC  3B C8				cmp ecx, eax
+ 000001AE  7D 07				jge _endAddLoop
+ 000001B0  03 F3				add esi, ebx 
+ 000001B2  83 C1 01				add ecx, 1
+ 000001B5  EB F5				jmp _addLoop
+ 000001B7					_endAddLoop:
+
+ 000001B7  8B 4D 10				mov ecx, str_len
+ 000001BA  83 E9 02				sub ecx, 2
+ 000001BD  FC					cld
+ 000001BE  F3/ A4				rep movsb
+						
+ 000001C0  66| 9D		        popf  
+ 000001C2  5E					pop esi
+ 000001C3  5F					pop edi
+ 000001C4  5A			        pop edx 
+ 000001C5  59					pop ecx
+ 000001C6  5B					pop ebx 
+ 000001C7  58					pop eax             
+ 000001C8  8B E5		        mov    esp, ebp       
+ 000001CA  5D			        pop    ebp            
+ 000001CB  C2 000C		        ret    12              
+
+ 000001CE			get_index_proc     ENDP
+
+				; This procedure prints a given number of password strings in a formatted fashion
+ 000001CE			print_passwords_proc  PROC   NEAR32
+
+ 000001CE  55			        push   ebp           
+ 000001CF  8B EC		        mov    ebp, esp     
+ 000001D1  50			        push   eax         
+ 000001D2  53					push   ebx
+ 000001D3  51					push   ecx 
+ 000001D4  52					push   edx
+ 000001D5  57					push   	edi               
+ 000001D6  56			        push   	esi
+ 000001D7  9C			        pushfd              
+						
+ 000001D8  8B 45 10				mov eax, amount
+ 000001DB  B9 00000001				mov ecx, 1 
+						
+						; Get the index, copy it into temp, and print it to the screen with a carriage 
+ 000001E0					_printLoop:
+ 000001E0  3B C8				cmp ecx, eax
+ 000001E2  7F 34				jg _endPrintLoop
+ 000001E4  51					push ecx
+ 000001E5  FF 75 0C				pushd prt_len
+ 000001E8  8D 1D 00000010 R			lea ebx, temp 
+ 000001EE  53					push ebx 
+ 000001EF  FF 75 08				pushd passwords
+ 000001F2  E8 FFFFFF93				call get_index_proc
+						output temp
+						output carriage
+ 00000213  83 C1 01				add ecx, 1
+ 00000216  EB C8				jmp _printLoop
+						
+ 00000218					_endPrintLoop:
+ 00000218  9D			        popfd  
+ 00000219  5E					pop esi
+ 0000021A  5F					pop edi
+ 0000021B  5A			        pop edx 
+ 0000021C  59					pop ecx
+ 0000021D  5B					pop ebx 
+ 0000021E  58					pop eax             
+ 0000021F  8B E5		        mov    esp, ebp       
+ 00000221  5D			        pop    ebp            
+ 00000222  C2 000C		        ret    12              
+
+ 00000225			print_passwords_proc     ENDP
+
+				; This is the procedure that swaps strings around and finds matches, to return to the main program
+				; It takes the parameters entered by the user to determine how many strings have the exact character matches
+				; specified and to swap those strings (in order) to the front of the password string
+ 00000225			fallout_hack_proc  PROC   NEAR32
+ 00000225  55				push   ebp           
+ 00000226  8B EC			mov    ebp, esp     
+ 00000228  50				push   eax         
+					;push   ebx
+ 00000229  51				push   ecx 
+ 0000022A  52				push   edx
+ 0000022B  57				push   	edi               
+ 0000022C  56				push   	esi
+ 0000022D  9C				pushfd
+					
+					
+					; Move the choice to the last position
+ 0000022E  FF 75 10				pushd  hack_amount
+ 00000231  FF 75 14				pushd  hack_choice 
+ 00000234  FF 75 0C				pushd hack_pass_length
+ 00000237  FF 75 08				pushd hackPasswordString_add
+ 0000023A  E8 FFFFFEA7				call shift_proc
+
+ 0000023F  B9 00000001			mov ecx, 1 
+ 00000244  BB 00000001			mov ebx, 1 ; We will start testing at one 
+ 00000249  8B 45 10			mov eax, hack_amount ;The number of passwords to sort through
+					
+					; Loop through each password from index 1 to last index 
+ 0000024C				_mainLoop:
+ 0000024C  3B 4D 10			cmp ecx, hack_amount 
+ 0000024F  74 2A			je _endMainLoop
+					
+					; Get the number of matches with current "good" index and test password 
+ 00000251  50				pushd eax
+ 00000252  53				pushd ebx
+ 00000253  FF 75 0C			pushd hack_pass_length
+ 00000256  FF 75 08			pushd hackPasswordString_add
+ 00000259  E8 FFFFFEBE			call num_matches_proc
+					
+					; If the number of matches is the same as passed into this proc, this is a good potential password 
+ 0000025E  3B 55 18			cmp edx, hack_matches
+ 00000261  75 04			jne _swap
+					; We have to increase our "good" password index, so good passwords will stay at the top of the list 
+ 00000263  43				inc ebx 
+ 00000264  41				inc ecx 
+ 00000265  EB E5			jmp _mainLoop
+					
+					; If the number of matches doesn't equal what this proc was given, we shift it down to the position of eax 
+ 00000267				_swap:
+ 00000267  FF 75 10			pushd hack_amount
+ 0000026A  50				pushd eax
+ 0000026B  53				pushd ebx
+ 0000026C  FF 75 0C			pushd hack_pass_length
+ 0000026F  FF 75 08			pushd hackPasswordString_add
+ 00000272  E8 FFFFFE6F			call shift_proc
+					; If a swap occurred, our test password will move up one spot in the list
+					; and our index should down one spot 
+ 00000277  48				dec eax 
+ 00000278  41				inc ecx 
+					
+ 00000279  EB D1			jmp _mainLoop
+ 0000027B				_endMainLoop:
+
+					; Return the number of good passwords in ebx, subtract 1 since ebx started at 1 
+ 0000027B  4B				dec ebx 
+					
+ 0000027C  9D				popfd  
+ 0000027D  5E				pop esi
+ 0000027E  5F				pop edi
+ 0000027F  5A				pop edx 
+ 00000280  59				pop ecx
+					;pop ebx 
+ 00000281  58				pop eax             
+ 00000282  8B E5			mov    esp, ebp       
+ 00000284  5D				pop    ebp            
+ 00000285  C2 0014			ret    20
+
+ 00000288			fallout_hack_proc     ENDP
+
+				END
+Microsoft (R) Macro Assembler Version 6.15.8803		    12/02/15 16:46:35
+falloutprocs.asm					     Symbols 2 - 1
+
+
+
+
+Macros:
+
+                N a m e                 Type
+
+append . . . . . . . . . . . . .	Proc
+atod . . . . . . . . . . . . . .	Proc
+atoi . . . . . . . . . . . . . .	Proc
+compare  . . . . . . . . . . . .	Proc
+dtoa . . . . . . . . . . . . . .	Proc
+equals . . . . . . . . . . . . .	Proc
+indexOf  . . . . . . . . . . . .	Proc
+inputD . . . . . . . . . . . . .	Proc
+inputW . . . . . . . . . . . . .	Proc
+input  . . . . . . . . . . . . .	Proc
+itoa . . . . . . . . . . . . . .	Proc
+outputD  . . . . . . . . . . . .	Proc
+outputW  . . . . . . . . . . . .	Proc
+output . . . . . . . . . . . . .	Proc
+replace  . . . . . . . . . . . .	Proc
+strcopy  . . . . . . . . . . . .	Proc
+strlen . . . . . . . . . . . . .	Proc
+substring  . . . . . . . . . . .	Proc
+toLower  . . . . . . . . . . . .	Proc
+
+
+Segments and Groups:
+
+                N a m e                 Size     Length   Align   Combine Class
+
+FLAT . . . . . . . . . . . . . .	GROUP
+_DATA  . . . . . . . . . . . . .	32 Bit	 000003F8 DWord	  Public  'DATA'	
+_TEXT  . . . . . . . . . . . . .	32 Bit	 00000288 DWord	  Public  'CODE'	
+
+
+Procedures,  parameters and locals:
+
+                N a m e                 Type     Value    Attr
+
+fallout_hack_proc  . . . . . . .	P Near	 00000225 _TEXT	Length= 00000063 Public
+  _mainLoop  . . . . . . . . . .	L Near	 0000024C _TEXT	
+  _swap  . . . . . . . . . . . .	L Near	 00000267 _TEXT	
+  _endMainLoop . . . . . . . . .	L Near	 0000027B _TEXT	
+get_index_proc . . . . . . . . .	P Near	 0000018A _TEXT	Length= 00000044 Public
+  _addLoop . . . . . . . . . . .	L Near	 000001AC _TEXT	
+  _endAddLoop  . . . . . . . . .	L Near	 000001B7 _TEXT	
+num_matches_proc . . . . . . . .	P Near	 0000011C _TEXT	Length= 0000006E Public
+  _swapaddLoop1  . . . . . . . .	L Near	 0000013D _TEXT	
+  _endSwapAddLoop1 . . . . . . .	L Near	 00000148 _TEXT	
+  _swapaddLoop3  . . . . . . . .	L Near	 00000159 _TEXT	
+  _endSwapAddLoop3 . . . . . . .	L Near	 00000164 _TEXT	
+  _countMatchesLoop  . . . . . .	L Near	 0000016F _TEXT	
+  _incrementKeepGoing  . . . . .	L Near	 00000174 _TEXT	
+  _noMatch . . . . . . . . . . .	L Near	 00000177 _TEXT	
+  _endCountMatchesLoop . . . . .	L Near	 0000017C _TEXT	
+print_passwords_proc . . . . . .	P Near	 000001CE _TEXT	Length= 00000057 Public
+  _printLoop . . . . . . . . . .	L Near	 000001E0 _TEXT	
+  _endPrintLoop  . . . . . . . .	L Near	 00000218 _TEXT	
+shift_proc . . . . . . . . . . .	P Near	 000000E6 _TEXT	Length= 00000036 Public
+  _shiftLoop . . . . . . . . . .	L Near	 000000F6 _TEXT	
+  _endShiftLoop  . . . . . . . .	L Near	 0000010F _TEXT	
+swap_strings_proc  . . . . . . .	P Near	 00000000 _TEXT	Length= 000000E6 Public
+  _swapaddLoop1  . . . . . . . .	L Near	 00000021 _TEXT	
+  _endSwapAddLoop1 . . . . . . .	L Near	 0000002C _TEXT	
+  _swapaddLoop2  . . . . . . . .	L Near	 0000003A _TEXT	
+  _endSwapAddLoop2 . . . . . . .	L Near	 00000045 _TEXT	
+  _swapaddLoop3  . . . . . . . .	L Near	 00000065 _TEXT	
+  _endSwapAddLoop3 . . . . . . .	L Near	 00000070 _TEXT	
+  _swapaddLoop4  . . . . . . . .	L Near	 00000081 _TEXT	
+  _endSwapAddLoop4 . . . . . . .	L Near	 0000008C _TEXT	
+  _swapaddLoop5  . . . . . . . .	L Near	 000000AC _TEXT	
+  _endSwapAddLoop5 . . . . . . .	L Near	 000000B7 _TEXT	
+  _swapaddLoop6  . . . . . . . .	L Near	 000000C5 _TEXT	
+  _endSwapAddLoop6 . . . . . . .	L Near	 000000D0 _TEXT	
+
+
+Symbols:
+
+                N a m e                 Type     Value    Attr
+
+@CodeSize  . . . . . . . . . . .	Number	 00000000h   
+@DataSize  . . . . . . . . . . .	Number	 00000000h   
+@Interface . . . . . . . . . . .	Number	 00000000h   
+@Model . . . . . . . . . . . . .	Number	 00000007h   
+@code  . . . . . . . . . . . . .	Text   	 _TEXT
+@data  . . . . . . . . . . . . .	Text   	 FLAT
+@fardata?  . . . . . . . . . . .	Text   	 FLAT
+@fardata . . . . . . . . . . . .	Text   	 FLAT
+@stack . . . . . . . . . . . . .	Text   	 FLAT
+CR . . . . . . . . . . . . . . .	Number	 0000000Dh   
+LF . . . . . . . . . . . . . . .	Number	 0000000Ah   
+MAX_ARRAY  . . . . . . . . . . .	Number	 000003E8h   
+amount . . . . . . . . . . . . .	Text   	 [ebp + 16]
+appendproc . . . . . . . . . . .	L Near	 00000000 FLAT	External
+atodproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+atoiproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+carriage . . . . . . . . . . . .	Byte	 00000000 _DATA	
+compareproc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+dtoaproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+equalsproc . . . . . . . . . . .	L Near	 00000000 FLAT	External
+hackPasswordString_add . . . . .	Text   	 [ebp + 8]
+hack_amount  . . . . . . . . . .	Text   	 [ebp + 16]
+hack_choice  . . . . . . . . . .	Text   	 [ebp + 20]
+hack_matches . . . . . . . . . .	Text   	 [ebp + 24]
+hack_pass_length . . . . . . . .	Text   	 [ebp + 12]
+index1 . . . . . . . . . . . . .	Text   	 [ebp + 16]
+index2 . . . . . . . . . . . . .	Text   	 [ebp + 20]
+indexOfproc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+index  . . . . . . . . . . . . .	Text   	 [ebp + 20]
+inproc . . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+itoaproc . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+maxNumStrings  . . . . . . . . .	Text   	 [ebp + 24]
+outproc  . . . . . . . . . . . .	L Near	 00000000 FLAT	External
+passwordString_add . . . . . . .	Text   	 [ebp + 8]
+passwords  . . . . . . . . . . .	Text   	 [ebp + 8]
+prt_len  . . . . . . . . . . . .	Text   	 [ebp + 12]
+replaceproc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+str_1  . . . . . . . . . . . . .	Text   	 [ebp + 8]
+str_2  . . . . . . . . . . . . .	Text   	 [ebp + 12]
+str_len  . . . . . . . . . . . .	Text   	 [ebp + 16]
+strcopyproc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+strlenproc . . . . . . . . . . .	L Near	 00000000 FLAT	External
+substringproc  . . . . . . . . .	L Near	 00000000 FLAT	External
+swap_length  . . . . . . . . . .	Text   	 [ebp + 12]
+temp . . . . . . . . . . . . . .	Byte	 00000010 _DATA	
+text . . . . . . . . . . . . . .	Byte	 00000003 _DATA	
+toLowerproc  . . . . . . . . . .	L Near	 00000000 FLAT	External
+
+	   0 Warnings
+	   0 Errors
